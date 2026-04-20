@@ -1,0 +1,33 @@
+flow_csv: 'data/river-flow-imputed-with-non-nans.csv'
+clim_csv: 'data/daily-ts-means-per-station.csv' 
+other_csv: ''
+station_attrs: 'data/nrfa-station-metadata.csv'
+station_attrs_cols: [
+    "catchment-area",
+    "saar-1961-1990",
+    "lcm2007-urban",
+    "bfihost",
+    "farl",
+    "dpsbar",
+    "propwet"
+]
+scaler:
+
+model_name: 'HBV'
+  
+history: 7  
+horizon: 7  
+
+train_ratio: 0.7
+val_ratio: 0.15
+test_ratio: 0.15
+
+num_runs: 10
+start_seed: 42  
+
+# Output directories
+results_dir: 'data/results/${model_name}-${other_csv}-h=${horizon}-and-l=${history}'
+log_dir: 'data/logs/${model_name}-${other_csv}-h=${horizon}-and-l=${history}'
+
+
+

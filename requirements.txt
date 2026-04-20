@@ -1,0 +1,17 @@
+numpy<2
+mlstm_kernels
+xlstm
+torch_geometric
+timm
+autograd
+optuna
+joblib
+tdqm
+pylint
+thop
+scikit-learn
+pandas
+xarray
+scipy
+statsmodels
+

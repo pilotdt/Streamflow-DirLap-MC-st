@@ -1,0 +1,56 @@
+flow_csv: 'data/river-flow-imputed-with-non-nans.csv'
+clim_csv: 'data/daily-ts-means-per-station.csv'  
+other_csv: ''
+station_attrs: 'data/nrfa-station-metadata.csv'
+station_attrs_cols: [
+    "catchment-area",
+    "saar-1961-1990",
+    "lcm2007-urban",
+    "bfihost",
+    "farl",
+    "dpsbar",
+    "propwet",
+]
+adj_np: 'data/adj-mat-all-stations.csv'  
+binary_adj: False
+un_adj: False
+
+  
+  
+history: 7  
+horizon: 7  
+hidden: 64  
+num_layers: 2 
+
+batch_size: 16
+epochs: 100
+lr: 0.0006853644584430316
+weight_decay: 0.00012590468576875448
+lambda_L_dir: 0.38991829857186855
+# lambda_L_dir: 0.45
+# 0.38991829857186855
+# 0.45
+
+optimizer: 'adam' 
+patience: 10 
+loss_function: 'mse'  
+trials: 256
+
+reg_4_loss: ''
+add_storage: False
+use_packing: False
+model_name: 'GRU${reg_4_loss}'
+
+scaler: StandardScaler
+train_ratio: 0.7
+val_ratio: 0.15
+test_ratio: 0.15
+
+num_runs: 10
+start_seed: 42  
+
+results_dir: 'data/results/${model_name}-${other_csv}-binary=${binary_adj}-und=${un_adj}-h=${horizon}-and-l=${history}'
+log_dir: 'data/logs/${model_name}-${other_csv}-binary=${binary_adj}-un=${un_adj}-h=${horizon}-and-l=${history}'
+
+device: 'cuda'  
+use_multi_gpu: True  

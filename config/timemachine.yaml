@@ -1,0 +1,59 @@
+adj_np: data/adj-mat-all-stations.csv
+binary_adj: False
+batch_size: 16
+clim_csv: data/daily-ts-means-per-station.csv
+device: cuda
+epochs: 100
+flow_csv: data/river-flow-imputed-with-non-nans.csv
+other_csv: ''
+hidden: 64
+history: 7
+horizon: 7
+
+results_dir: 'data/results/${model_name}-${other_csv}-binary=${binary_adj}-h=${horizon}-and-l=${history}'
+log_dir: 'data/logs/${model_name}-${other_csv}-binary=${binary_adj}-h=${horizon}-and-l=${history}'
+loss_function: mse
+lr: 0.0006853644584430316
+lambda_L_dir: 0.45
+num_layers: 2
+
+num_runs: 10
+optimizer: adam
+patience: 5
+start_seed: 42
+scaler: StandardScaler
+station_attrs: data/nrfa-station-metadata.csv
+add_storage: False
+use_packing: False
+reg_4_loss: ''
+model_name: 'TimeMachine'
+station_attrs_cols:
+- catchment-area
+- saar-1961-1990
+- lcm2007-urban
+- bfihost
+- farl
+- dpsbar
+- propwet
+test_ratio: 0.15
+train_ratio: 0.7
+use_multi_gpu: true
+val_ratio: 0.15
+weight_decay: 0.00012590468576875448
+
+model: "TimeMachine"
+
+seq_len: 7
+pred_len: 7
+
+n1: 32             # Hidden expansion (approx 4 * L)
+n2: 16             # Bottleneck dimension (approx 2 * L)
+dropout: 0.1
+ch_ind: 1          # 1: Channel Independent (Essential for L=7)
+residual: 1        # Enable residual connections
+revin: 1           # 1: Use RevIN 
+
+# Mamba State Space Params
+d_state: 8         # Reduced state for short sequence
+dconv: 2           # Small kernel for short sequence
+e_fact: 2          # Mamba expansion factor

@@ -1,0 +1,45 @@
+adj_np: data/adj-mat-all-stations.csv
+binary_adj: False
+un_adj: False
+batch_size: 16
+clim_csv: data/daily-ts-means-per-station.csv
+device: cuda
+epochs: 100
+flow_csv: data/river-flow-imputed-with-non-nans.csv
+other_csv: ''
+hidden: 64
+history: 7
+horizon: 7
+
+results_dir: 'data/results/${model_name}-${other_csv}-binary=${binary_adj}-und=${un_adj}-h=${horizon}-and-l=${history}'
+log_dir: 'data/logs/${model_name}-${other_csv}-binary=${binary_adj}-un=${un_adj}-h=${horizon}-and-l=${history}'
+loss_function: mse
+lr: 0.0006853644584430316
+lambda_L_dir: 0.45
+num_layers: 2
+
+num_runs: 10
+optimizer: adam
+patience: 10
+start_seed: 42
+scaler: StandardScaler
+station_attrs: data/nrfa-station-metadata.csv
+add_storage: False
+use_packing: False
+reg_4_loss: ''
+model_name: 'LSTM${reg_4_loss}'
+station_attrs_cols:
+- catchment-area
+- saar-1961-1990
+- lcm2007-urban
+- bfihost
+- farl
+- dpsbar
+- propwet
+test_ratio: 0.15
+train_ratio: 0.7
+use_multi_gpu: true
+val_ratio: 0.15
+weight_decay: 0.00012590468576875448
+trials: 256
+

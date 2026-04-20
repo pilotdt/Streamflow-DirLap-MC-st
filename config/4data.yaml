@@ -1,0 +1,20 @@
+clim_csv: data/daily-ts-means-per-station.csv
+flow_csv: data/river-flow-imputed-with-non-nans.csv
+other_csv: '' 
+station_attrs: 'data/nrfa-station-metadata.csv'
+station_attrs_cols: [
+    "catchment-area",
+    "saar-1961-1990",
+    "lcm2007-urban",
+    "bfihost",
+    "farl",
+    "dpsbar",
+    "propwet"
+]
+scaler:
+train_ratio: 0.7
+val_ratio: 0.15
+test_ratio: 0.15
+history: 12
+horizon: 12
+use_packing: False

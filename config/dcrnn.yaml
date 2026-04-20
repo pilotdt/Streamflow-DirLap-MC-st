@@ -1,0 +1,55 @@
+flow_csv: 'data/river-flow-imputed-with-non-nans.csv'
+clim_csv: 'data/daily-ts-means-per-station.csv' 
+other_csv: '' 
+station_attrs: 'data/nrfa-station-metadata.csv'
+station_attrs_cols: [
+    "catchment-area",
+    "saar-1961-1990",
+    "lcm2007-urban",
+    "bfihost",
+    "farl",
+    "dpsbar",
+    "propwet"
+]
+adj_np: 'data/adj-mat-all-stations.csv'
+binary_adj: False
+un_adj: False
+
+scaler: StandardScaler
+
+history: 7  
+horizon: 7  
+hidden: 64
+output_dim: 1  
+num_layers: 1
+max_diffusion_step: 1
+filter_type: "dual_random_walk"
+
+batch_size: 32
+epochs: 100
+lr: 0.0001  
+add_storage: False
+reg_4_loss: ''
+
+model_name: 'DCRNN${reg_4_loss}'
+lambda_L_dir: 0.45
+# lambda_L_dir: 0.38991829857186855
+weight_decay: 0.00001  
+optimizer: 'adam'  
+patience: 10  
+loss_function: 'mse'  
+trials: 150
+opt_only_lambda_dir: False
+
+train_ratio: 0.7
+val_ratio: 0.15
+test_ratio: 0.15
+
+num_runs: 10
+start_seed: 42 
+
+results_dir: 'data/results/${model_name}-${other_csv}-binary=${binary_adj}-und=${un_adj}-h=${horizon}-and-l=${history}'
+log_dir: 'data/logs/${model_name}-${other_csv}-binary=${binary_adj}-un=${un_adj}-h=${horizon}-and-l=${history}'
+
+device: 'cuda' 
+use_multi_gpu: True 
