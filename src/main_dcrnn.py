@@ -88,7 +88,8 @@ def run_single_experiment(cfg, run_id, train_loader, val_loader, std_per_station
             max_diffusion_step=cfg['max_diffusion_step'],
             filter_type=cfg.get('filter_type', 'laplacian'),
             logger=logger,
-            use_curriculum_learning=cfg.get("use_cl", False)).to(device)
+            use_curriculum_learning=cfg.get("use_cl", False),
+            add_storage=cfg['add_storage']).to(device)
     
     # Count parameters
     num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)

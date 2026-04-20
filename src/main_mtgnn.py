@@ -96,7 +96,8 @@ def run_single_experiment(cfg, run_id, train_loader, val_loader, std_per_station
             out_dim= cfg["output_dim"],    
             seq_length = cfg["history"],  
             layers = cfg["num_layers"],
-            predefined_A=A_norm.to(device)
+            predefined_A=A_norm.to(device),
+            add_storage=cfg['add_storage']
             ).to(device)       
     
     # Count parameters

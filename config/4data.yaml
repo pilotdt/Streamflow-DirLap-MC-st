@@ -11,10 +11,10 @@ station_attrs_cols: [
     "dpsbar",
     "propwet"
 ]
-scaler:
+scaler: StandardScaler
 train_ratio: 0.7
 val_ratio: 0.15
 test_ratio: 0.15
-history: 12
-horizon: 12
+history: 10
+horizon: 10
 use_packing: False

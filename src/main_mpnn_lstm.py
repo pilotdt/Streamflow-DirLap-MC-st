@@ -88,6 +88,7 @@ def run_single_experiment(cfg, run_id, train_loader, val_loader, std_per_station
             dropout=cfg["dropout"],
             seq_len=seq_lengths,
             use_packing=cfg['use_packing'],
+            add_storage=cfg['add_storage']
             adj=A_sparse).to(device)
             
     # Count parameters

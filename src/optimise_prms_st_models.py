@@ -153,14 +153,16 @@ def run_single_experiment(cfg, run_id, train_loader, val_loader, std_per_station
                 dropout=cfg["dropout"],
                 seq_len=seq_lengths,
                 use_packing=cfg['use_packing'],
-                adj=A_sparse).to(device)
+                adj=A_sparse.to(device),
+                add_storage=cfg['add_storage'])
         elif 'STGNN' in cfg['model_name']:
             model = STGCNGraphConv(
                 config=cfg,
                 A=A_norm,
                 gso=L,
                 blocks=blocks,
-                n_vertex = num_stations
+                n_vertex = num_stations,
+                add_storage=cfg['add_storage']
             ).to(device)
         elif 'DCRNN' in cfg['model_name']:
             model = DCRNNModel(
@@ -175,7 +177,8 @@ def run_single_experiment(cfg, run_id, train_loader, val_loader, std_per_station
                 max_diffusion_step=cfg['max_diffusion_step'],
                 filter_type=cfg.get('filter_type', 'laplacian'),
                 logger=logger,
-                use_curriculum_learning=cfg.get("use_cl", False)).to(device)
+                use_curriculum_learning=cfg.get("use_cl", False),
+                add_storage=cfg['add_storage']).to(device)
         elif 'MTGNN' in cfg['model_name']:
             model = gtnet(
                 gcn_true=True,             
@@ -193,9 +196,9 @@ def run_single_experiment(cfg, run_id, train_loader, val_loader, std_per_station
                 out_dim= cfg["output_dim"],    
                 seq_length = cfg["history"],  
                 layers = cfg["num_layers"],
-                predefined_A=A_norm.to(device)
+                predefined_A=A_norm.to(device),
+                add_storage=cfg['add_storage']
                 ).to(device) 
-            
             
     # Create optimizer config
     optimizer_cfg = {

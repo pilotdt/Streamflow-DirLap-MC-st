@@ -79,7 +79,8 @@ def run_single_experiment(cfg, run_id, train_loader, val_loader, std_per_station
             A=A_norm,
             gso=L,
             blocks=blocks,
-            n_vertex = num_stations
+            n_vertex = num_stations,
+            add_storage=cfg['add_storage']
         ).to(device)
     
     # Count parameters
