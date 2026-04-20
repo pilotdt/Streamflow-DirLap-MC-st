@@ -46,5 +46,3 @@ Publicly available datasets are used:
 [1] Muñoz Sabater, J. (2019). *ERA5-Land hourly data from 1981 to present*. Copernicus Climate Change Service (C3S).
 
 [2] Coxon, G., Freer, J., Lane, R., et al. (2020). *CAMELS-GB: Hydrometeorological time series and landscape attributes for 671 catchments in Great Britain*. Earth System Science Data, 12, 2459–2483.
-
-[3] National River Flow Archive (NRFA). *UK National River Flow Data and Metadata*. Centre for Ecology & Hydrology (CEH).
