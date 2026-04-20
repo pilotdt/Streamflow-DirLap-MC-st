@@ -7,9 +7,9 @@ We propose a regularization technique for streamflow forecasting that adds learn
 ### Installation
 
 ```bash
-git clone https://github.com/pilotdt/StreamFlow-DirLap-MC.git
+git clone https://github.com/pilotdt/StreamFlow-DirLap-MC-st.git
 
-cd StreamFlow-DirLap-MC
+cd StreamFlow-DirLap-MC-st
 ```
 
 
@@ -26,7 +26,7 @@ e.g.,
 
 ```bash
 
-python3 src/main_<backbone>.py reg_4_loss=L_dir add_storage=True 
+python3 src/main_<rnn_backbone>.py reg_4_loss=L_dir add_storage=True 
 
 ```
 
