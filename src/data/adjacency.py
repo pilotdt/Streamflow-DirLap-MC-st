@@ -67,6 +67,7 @@ def calculate_normalized_laplacian(adj):
 def calculate_random_walk_matrix(adj_mx):
     adj_mx = sp.coo_matrix(adj_mx)
     d = np.array(adj_mx.sum(1))
+    d[d == 0] = 1e-10
     d_inv = np.power(d, -1).flatten()
     d_inv[np.isinf(d_inv)] = 0.
     d_mat_inv = sp.diags(d_inv)
