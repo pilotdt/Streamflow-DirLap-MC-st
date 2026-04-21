@@ -30,7 +30,7 @@ from evaluation.evaluator import Evaluator
 from evaluation.compute_metrics import compute_avg_metrics
 
 def run_single_experiment(cfg, run_id, train_loader, val_loader, std_per_station, seq_lengths,
-                          test_loader, clim_station_order, num_stations, in_features, y_scaler, device, logger):
+                          test_loader, clim_station_order, A_norm, num_stations, in_features, y_scaler, device, logger, trial=None):
     """Run a single experiment with a specific seed"""
     
     # Set seed
@@ -43,25 +43,18 @@ def run_single_experiment(cfg, run_id, train_loader, val_loader, std_per_station
 
     # Create checkpoint path
     ckpt_path = os.path.join(run_dir, 'best_model.pt')
-    A_np = cfg['adj_np'] 
-    # load adjacency matrix 
-    
-    if cfg['reg_4_loss'] == "L_dir":
-        A_np = cfg['adj_np']    
-        A_np, _, _ = load_adjacency_matrix(A_np, specific_order=clim_station_order)
-        A = torch.tensor(A_np, dtype=torch.float32, device=device)
-        L_dir = build_advection_operator(A)
+ 
+    if cfg['reg_4_loss'] == "L_dir":   
+        A = A_norm.to(device) if not isinstance(A_norm, torch.Tensor) else A_norm
         if cfg['add_storage']==False:
             L_dir = build_advection_operator(A)
         elif cfg['add_storage']:
             L_dir = None   
     else:
-        A_norm, _, _ = load_adjacency_matrix(A_np, specific_order=clim_station_order)
         L_dir = None
 
     # Initialize model
-    if cfg['reg_4_loss'] == "L_dir" and cfg['add_storage']:
-        model = DCRNNModel(
+    model = DCRNNModel(
             adj_mx=A_np,
             num_nodes=num_stations,
             input_dim=in_features,            
@@ -75,21 +68,7 @@ def run_single_experiment(cfg, run_id, train_loader, val_loader, std_per_station
             logger=logger,
             use_curriculum_learning=cfg.get("use_cl", False),
             add_storage=cfg['add_storage']).to(device)
-    else:
-        model = DCRNNModel(
-            adj_mx=A_norm,
-            num_nodes=num_stations,
-            input_dim=in_features,            
-            output_dim=cfg["output_dim"],            
-            horizon=cfg['horizon'],             
-            seq_len=cfg['history'],              
-            rnn_units=cfg["hidden"],
-            num_rnn_layers=cfg["num_layers"],
-            max_diffusion_step=cfg['max_diffusion_step'],
-            filter_type=cfg.get('filter_type', 'laplacian'),
-            logger=logger,
-            use_curriculum_learning=cfg.get("use_cl", False),
-            add_storage=cfg['add_storage']).to(device)
+
     
     # Count parameters
     num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -291,7 +270,7 @@ def main(cfg: DictConfig):
     )
     test_dataset = RiverFlowDataset(
         prepared["X_test"],
-        prepared["y_test"] 
+        prepared["y_test"]
     )
     clim_station_order = prepared["clim_station_order"]
     num_stations    = prepared["num_nodes"]
@@ -300,6 +279,9 @@ def main(cfg: DictConfig):
     y_scaler     = prepared["y_scaler"]
     seq_lengths  = prepared["seq_lengths"]
     std_per_station = prepared["std_per_station"]
+    A_np = cfg['adj_np'] 
+    # load adjacency matrix 
+    A_norm, _, _ = load_adjacency_matrix(A_np, specific_order=clim_station_order)
 
     train_loader = DataLoader(train_dataset, batch_size=cfg['batch_size'], shuffle=False, num_workers=2, pin_memory=True, persistent_workers=True, prefetch_factor=2, worker_init_fn=seed_worker)
     val_loader = DataLoader(val_dataset, batch_size=cfg['batch_size'], shuffle=False, num_workers=2, pin_memory=True, worker_init_fn=seed_worker, persistent_workers=True, prefetch_factor=2)
@@ -331,6 +313,7 @@ def main(cfg: DictConfig):
             train_loader=train_loader, 
             val_loader=val_loader, 
             test_loader=test_loader,
+            A_norm=A_norm,
             clim_station_order=clim_station_order,
             num_stations=num_stations,
             in_features=in_features,

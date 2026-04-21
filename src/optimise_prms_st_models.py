@@ -37,7 +37,7 @@ from evaluation.compute_metrics import compute_avg_metrics_fast
 from evaluation.evaluator import Evaluator
 
 def run_single_experiment(cfg, run_id, train_loader, val_loader, std_per_station, seq_lengths,
-                          test_loader, clim_station_order, num_stations, in_features, y_scaler, device, logger, trial=None):
+                          test_loader, clim_station_order, A_norm, num_stations, in_features, y_scaler, device, logger, trial=None):
     """Run a single experiment with a specific seed"""
     
     # Set seed
@@ -50,31 +50,9 @@ def run_single_experiment(cfg, run_id, train_loader, val_loader, std_per_station
 
     # Create checkpoint path
     ckpt_path = os.path.join(run_dir, 'best_model.pt')
-    A_np = cfg['adj_np'] 
 
-    if 'MPNN-LSTM' in cfg['model_name']:
-        A_norm, _, _ = load_adjacency_matrix(A_np, specific_order=clim_station_order)
-        indices = A_norm.nonzero().t()
-        values = A_norm[A_norm > 0]
-        A_sparse = torch.sparse_coo_tensor(indices, values, A_norm.shape, device=device).coalesce()
-    elif 'DCRNN' in cfg['model_name']:
-        A_norm, _, _ = load_adjacency_matrix(A_np, specific_order=clim_station_order)
-    elif 'MTGNN' in cfg['model_name']:
-        A_norm, _, _ = load_adjacency_matrix(A_np, specific_order=clim_station_order)
-        A_norm = A_norm.to(device)
-    elif 'STGNN' in cfg['model_name']:
-        A_norm, _, _ = load_adjacency_matrix(A_np, specific_order=clim_station_order)
-        A_norm = A_norm.to(device)
-        L = build_advection_operator(A_norm)
-        L = L.to_dense() if L.is_sparse else L
-        L = L.to(device)
-        blocks = [[in_features], [64, 16, 64], [128, 64], [cfg["horizon"]]]
-
-    # Create criterion
     if cfg["reg_4_loss"] == "L_dir":
-        A_np = cfg['adj_np']    
-        A_np, _, _ = load_adjacency_matrix(A_np, specific_order=clim_station_order)
-        A = torch.tensor(A_np, dtype=torch.float32, device=device)
+        A = A_norm.to(device) if not isinstance(A_norm, torch.Tensor) else A_norm
         if cfg['add_storage']==False:
             L_dir = build_advection_operator(A)
         elif cfg['add_storage']:
@@ -82,123 +60,77 @@ def run_single_experiment(cfg, run_id, train_loader, val_loader, std_per_station
     else:
         L_dir = None
 
+    if 'MPNN-LSTM' in cfg['model_name']:
+        indices = A_norm.nonzero().t()
+        values = A_norm[A_norm > 0]
+        A_sparse = torch.sparse_coo_tensor(indices, values, A_norm.shape, device=device).coalesce()
+    elif 'MTGNN' in cfg['model_name']:
+        A_norm = A_norm.to(device)
+    elif 'STGNN' in cfg['model_name']:
+        A_norm = A_norm.to(device)
+        L = build_advection_operator(A_norm)
+        L = L.to_dense() if L.is_sparse else L
+        L = L.to(device)
+        blocks = [[in_features], [64, 16, 64], [128, 64], [cfg["horizon"]]]
+
     # Initialize model
-    if cfg['reg_4_loss'] == "L_dir" and cfg['add_storage']:
-        if 'MPNN-LSTM' in cfg['model_name']:
-            model = MPNN_LSTM(
-                n_nodes=num_stations,
-                nfeat=in_features,            
-                nout=cfg["output_dim"],            
-                horizon=cfg['horizon'],             
-                window=cfg['history'],              
-                n_hid=cfg["hidden"],
-                dropout=cfg["dropout"],
-                seq_len=seq_lengths,
-                use_packing=cfg['use_packing'],
-                adj=A_sparse,
-                add_storage=cfg['add_storage']).to(device)
-        elif 'STGNN' in cfg['model_name']:
-            model = STGCNGraphConv(
-                config=cfg,
-                A=A_norm,
-                gso=L,
-                blocks=blocks,
-                n_vertex = num_stations,
-                add_storage=cfg['add_storage']
+    if 'MPNN-LSTM' in cfg['model_name']:
+        model = MPNN_LSTM(
+            n_nodes=num_stations,
+            nfeat=in_features,            
+            nout=cfg["output_dim"],            
+            horizon=cfg['horizon'],             
+            window=cfg['history'],              
+            n_hid=cfg["hidden"],
+            dropout=cfg["dropout"],
+            seq_len=seq_lengths,
+            use_packing=cfg['use_packing'],
+            adj=A_sparse,
+            add_storage=cfg['add_storage']).to(device)
+    elif 'STGNN' in cfg['model_name']:
+        model = STGCNGraphConv(
+            config=cfg,
+            A=A_norm,
+            gso=L,
+            blocks=blocks,
+            n_vertex = num_stations,
+            add_storage=cfg['add_storage']
+        ).to(device)
+    elif 'DCRNN' in cfg['model_name']:
+        model = DCRNNModel(
+            adj_mx=A_norm,
+            num_nodes=num_stations,
+            input_dim=in_features,            
+            output_dim=cfg["output_dim"],            
+            horizon=cfg['horizon'],             
+            seq_len=cfg['history'],              
+            rnn_units=cfg["hidden"],
+            num_rnn_layers=cfg["num_layers"],
+            max_diffusion_step=cfg['max_diffusion_step'],
+            filter_type=cfg.get('filter_type', 'laplacian'),
+            logger=logger,
+            use_curriculum_learning=cfg.get("use_cl", False),
+            add_storage=cfg['add_storage']).to(device)
+    elif 'MTGNN' in cfg['model_name']:
+        model = gtnet(
+            gcn_true=True,             
+            buildA_true=False,           
+            gcn_depth=cfg["num_layers"],                 
+            num_nodes=num_stations,
+            horizon=cfg['horizon'],
+            device=device,
+            dropout=cfg["dropout"],
+            in_dim=in_features,  
+            conv_channels = cfg["hidden"],
+            residual_channels = cfg["hidden"],
+            skip_channels = 2* cfg["hidden"],
+            end_channels = 4 * cfg["hidden"],      
+            out_dim= cfg["output_dim"],    
+            seq_length = cfg["history"],  
+            layers = cfg["num_layers"],
+            predefined_A=A_norm.to(device),
+            add_storage=cfg['add_storage']
             ).to(device)
-        elif 'DCRNN' in cfg['model_name']:
-            model = DCRNNModel(
-                adj_mx=A_norm,
-                num_nodes=num_stations,
-                input_dim=in_features,            
-                output_dim=cfg["output_dim"],            
-                horizon=cfg['horizon'],             
-                seq_len=cfg['history'],              
-                rnn_units=cfg["hidden"],
-                num_rnn_layers=cfg["num_layers"],
-                max_diffusion_step=cfg['max_diffusion_step'],
-                filter_type=cfg.get('filter_type', 'laplacian'),
-                logger=logger,
-                use_curriculum_learning=cfg.get("use_cl", False),
-                add_storage=cfg['add_storage']).to(device)
-        elif 'MTGNN' in cfg['model_name']:
-            model = gtnet(
-                gcn_true=True,             
-                buildA_true=False,           
-                gcn_depth=cfg["num_layers"],                 
-                num_nodes=num_stations,
-                horizon=cfg['horizon'],
-                device=device,
-                dropout=cfg["dropout"],
-                in_dim=in_features,  
-                conv_channels = cfg["hidden"],
-                residual_channels = cfg["hidden"],
-                skip_channels = 2* cfg["hidden"],
-                end_channels = 4 * cfg["hidden"],      
-                out_dim= cfg["output_dim"],    
-                seq_length = cfg["history"],  
-                layers = cfg["num_layers"],
-                predefined_A=A_norm.to(device),
-                add_storage=cfg['add_storage']
-                ).to(device)
-    else:
-        if 'MPNN-LSTM' in cfg['model_name']:
-            model = MPNN_LSTM(
-                n_nodes=num_stations,
-                nfeat=in_features,            
-                nout=cfg["output_dim"],            
-                horizon=cfg['horizon'],             
-                window=cfg['history'],              
-                n_hid=cfg["hidden"],
-                dropout=cfg["dropout"],
-                seq_len=seq_lengths,
-                use_packing=cfg['use_packing'],
-                adj=A_sparse.to(device),
-                add_storage=cfg['add_storage'])
-        elif 'STGNN' in cfg['model_name']:
-            model = STGCNGraphConv(
-                config=cfg,
-                A=A_norm,
-                gso=L,
-                blocks=blocks,
-                n_vertex = num_stations,
-                add_storage=cfg['add_storage']
-            ).to(device)
-        elif 'DCRNN' in cfg['model_name']:
-            model = DCRNNModel(
-                adj_mx=A_norm,
-                num_nodes=num_stations,
-                input_dim=in_features,            
-                output_dim=cfg["output_dim"],            
-                horizon=cfg['horizon'],             
-                seq_len=cfg['history'],              
-                rnn_units=cfg["hidden"],
-                num_rnn_layers=cfg["num_layers"],
-                max_diffusion_step=cfg['max_diffusion_step'],
-                filter_type=cfg.get('filter_type', 'laplacian'),
-                logger=logger,
-                use_curriculum_learning=cfg.get("use_cl", False),
-                add_storage=cfg['add_storage']).to(device)
-        elif 'MTGNN' in cfg['model_name']:
-            model = gtnet(
-                gcn_true=True,             
-                buildA_true=False,           
-                gcn_depth=cfg["num_layers"],                 
-                num_nodes=num_stations,
-                horizon=cfg['horizon'],
-                device=device,
-                dropout=cfg["dropout"],
-                in_dim=in_features,  
-                conv_channels = cfg["hidden"],
-                residual_channels = cfg["hidden"],
-                skip_channels = 2* cfg["hidden"],
-                end_channels = 4 * cfg["hidden"],      
-                out_dim= cfg["output_dim"],    
-                seq_length = cfg["history"],  
-                layers = cfg["num_layers"],
-                predefined_A=A_norm.to(device),
-                add_storage=cfg['add_storage']
-                ).to(device) 
             
     # Create optimizer config
     optimizer_cfg = {
@@ -260,7 +192,7 @@ def run_single_experiment(cfg, run_id, train_loader, val_loader, std_per_station
     torch.cuda.empty_cache()
     return metrics, preds, trues
 
-def objective(trial, base_cfg, train_dataset, val_dataset, prepared, device, logger):
+def objective(trial, base_cfg, train_dataset, val_dataset, A_norm, prepared, device, logger):
 
     cfg = copy.deepcopy(base_cfg)
     if cfg["opt_only_lambda_dir"]==False:
@@ -274,8 +206,6 @@ def objective(trial, base_cfg, train_dataset, val_dataset, prepared, device, log
             cfg["weight_decay"] = 0.0 
  
         cfg["batch_size"] = trial.suggest_categorical("batch_size", [8, 16, 32])
-        cfg["hidden"] = trial.suggest_categorical("hidden", [32, 64, 128])
-        cfg["num_layers"] = trial.suggest_int("num_layers", 1, 3)
         
     if cfg["opt_only_lambda_dir"]:
         if cfg["reg_4_loss"]=="L_dir":
@@ -291,7 +221,8 @@ def objective(trial, base_cfg, train_dataset, val_dataset, prepared, device, log
         run_id=0,
         train_loader=train_loader,
         val_loader=val_loader,
-        test_loader=None,            
+        test_loader=None,     
+        A_norm=A_norm,       
         clim_station_order=prepared["clim_station_order"],
         num_stations=prepared["num_nodes"],
         in_features=prepared["in_features"],
@@ -343,6 +274,8 @@ def main(cfg: DictConfig):
     dates        = prepared["dates"]
     y_scaler     = prepared["y_scaler"]
     seq_lengths  = prepared["seq_lengths"]
+    A_np = cfg['adj_np'] 
+    A_norm, _, _ = load_adjacency_matrix(A_np, specific_order=clim_station_order)
 
     # Set device and multi-GPU
     if base_cfg['device'] == 'cuda' and not torch.cuda.is_available():
@@ -356,7 +289,7 @@ def main(cfg: DictConfig):
     )
 
     study.optimize(
-        lambda trial: objective(trial, base_cfg, train_dataset, val_dataset, prepared, device, logger),
+        lambda trial: objective(trial, base_cfg, train_dataset, val_dataset, A_norm, prepared, device, logger),
         n_trials=cfg["trials"]
     )
 

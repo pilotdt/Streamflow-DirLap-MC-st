@@ -30,7 +30,7 @@ from evaluation.evaluator import Evaluator
 from evaluation.compute_metrics import compute_avg_metrics
 
 def run_single_experiment(cfg, run_id, train_loader, val_loader, std_per_station, seq_lengths,
-                          test_loader, clim_station_order, num_stations, in_features, y_scaler, device, logger):
+                          test_loader, clim_station_order, A_norm, num_stations, in_features, y_scaler, device, logger, trial=None):
     """Run a single experiment with a specific seed"""
 
     # Set seed
@@ -43,13 +43,9 @@ def run_single_experiment(cfg, run_id, train_loader, val_loader, std_per_station
 
     # Create checkpoint path
     ckpt_path = os.path.join(run_dir, 'best_model.pt')
-    A_np = cfg['adj_np'] 
-    # load adjacency matrix 
-    A_norm, _, _ = load_adjacency_matrix(A_np, specific_order=clim_station_order)
-        
-    if cfg['reg_4_loss'] == "L_dir":
-        A_np = cfg['adj_np']    
-        A = torch.tensor(A_norm, dtype=torch.float32, device=device)
+ 
+    if cfg['reg_4_loss'] == "L_dir":   
+        A = A_norm.to(device) if not isinstance(A_norm, torch.Tensor) else A_norm
         if cfg['add_storage']==False:
             L_dir = build_advection_operator(A)
         elif cfg['add_storage']:
@@ -64,32 +60,18 @@ def run_single_experiment(cfg, run_id, train_loader, val_loader, std_per_station
     A_sparse = torch.sparse_coo_tensor(indices, values, A_norm.shape, device=device).coalesce()
 
     # Initialize model
-    if cfg['reg_4_loss'] == "L_dir" and cfg['add_storage']:
-        model = MPNN_LSTM(
-            n_stations=num_stations,
-            nfeat=in_features,            
-            nout=cfg["output_dim"],            
-            horizon=cfg['horizon'],             
-            window=cfg['history'],              
-            n_hid=cfg["hidden"],
-            dropout=cfg["dropout"],
-            seq_len=seq_lengths,
-            use_packing=cfg['use_packing'],
-            adj=A_sparse,
-            add_storage=cfg['add_storage']).to(device)
-    else:
-        model = MPNN_LSTM(
-            n_stations=num_stations,
-            nfeat=in_features,            
-            nout=cfg["output_dim"],            
-            horizon=cfg['horizon'],             
-            window=cfg['history'],              
-            n_hid=cfg["hidden"],
-            dropout=cfg["dropout"],
-            seq_len=seq_lengths,
-            use_packing=cfg['use_packing'],
-            add_storage=cfg['add_storage']
-            adj=A_sparse).to(device)
+    model = MPNN_LSTM(
+        n_stations=num_stations,
+        nfeat=in_features,            
+        nout=cfg["output_dim"],            
+        horizon=cfg['horizon'],             
+        window=cfg['history'],              
+        n_hid=cfg["hidden"],
+        dropout=cfg["dropout"],
+        seq_len=seq_lengths,
+        use_packing=cfg['use_packing'],
+        adj=A_sparse,
+        add_storage=cfg['add_storage']).to(device)
             
     # Count parameters
     num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -300,6 +282,9 @@ def main(cfg: DictConfig):
     y_scaler     = prepared["y_scaler"]
     seq_lengths  = prepared["seq_lengths"]
     std_per_station = prepared["std_per_station"]
+    A_np = cfg['adj_np'] 
+    # load adjacency matrix 
+    A_norm, _, _ = load_adjacency_matrix(A_np, specific_order=clim_station_order)
 
     train_loader = DataLoader(train_dataset, batch_size=cfg['batch_size'], shuffle=False, num_workers=2, pin_memory=True, persistent_workers=True, prefetch_factor=2, worker_init_fn=seed_worker)
     val_loader = DataLoader(val_dataset, batch_size=cfg['batch_size'], shuffle=False, num_workers=2, pin_memory=True, worker_init_fn=seed_worker, persistent_workers=True, prefetch_factor=2)
@@ -331,6 +316,7 @@ def main(cfg: DictConfig):
             train_loader=train_loader, 
             val_loader=val_loader, 
             test_loader=test_loader,
+            A_norm=A_norm,
             clim_station_order=clim_station_order,
             num_stations=num_stations,
             in_features=in_features,

@@ -30,7 +30,7 @@ from evaluation.evaluator import Evaluator
 from evaluation.compute_metrics import compute_avg_metrics
 
 def run_single_experiment(cfg, run_id, train_loader, val_loader, std_per_station, seq_lengths,
-                          test_loader, clim_station_order, num_stations, in_features, y_scaler, device, logger):
+                          test_loader, clim_station_order, A_norm, num_stations, in_features, y_scaler, device, logger, trial=None):
     """Run a single experiment with a specific seed"""
 
     # Set seed
@@ -43,14 +43,9 @@ def run_single_experiment(cfg, run_id, train_loader, val_loader, std_per_station
 
     # Create checkpoint path
     ckpt_path = os.path.join(run_dir, 'best_model.pt')
-    A_np = cfg['adj_np'] 
-    # load adjacency matrix 
-    A_norm, _, _ = load_adjacency_matrix(A_np, specific_order=clim_station_order)
-    
-    if cfg['reg_4_loss'] == "L_dir":
-        A_np = cfg['adj_np']    
-        A_np, _, _ = load_adjacency_matrix(A_np, specific_order=clim_station_order)
-        A = torch.tensor(A_np, dtype=torch.float32, device=device)
+ 
+    if cfg['reg_4_loss'] == "L_dir":   
+        A = A_norm.to(device) if not isinstance(A_norm, torch.Tensor) else A_norm
         if cfg['add_storage']==False:
             L_dir = build_advection_operator(A)
         elif cfg['add_storage']:
@@ -59,46 +54,25 @@ def run_single_experiment(cfg, run_id, train_loader, val_loader, std_per_station
         L_dir = None
 
     # Initialize model
-    if cfg['reg_4_loss'] == "L_dir" and cfg['add_storage']:
-        model = gtnet(
-            gcn_true=True,             
-            buildA_true=False,           
-            gcn_depth=cfg["num_layers"],                 
-            num_nodes=num_stations,
-            horizon=cfg['horizon'],
-            device=device,
-            dropout=cfg["dropout"],
-            in_dim=in_features,  
-            conv_channels = cfg["hidden"],
-            residual_channels = cfg["hidden"],
-            skip_channels = 2* cfg["hidden"],
-            end_channels = 4 * cfg["hidden"],      
-            out_dim= cfg["output_dim"],    
-            seq_length = cfg["history"],  
-            layers = cfg["num_layers"],
-            predefined_A=A_norm.to(device),
-            add_storage=cfg['add_storage']
-            ).to(device)
-    else:
-        model = gtnet(
-            gcn_true=True,             
-            buildA_true=False,           
-            gcn_depth=cfg["num_layers"],                 
-            num_nodes=num_stations,
-            horizon=cfg['horizon'],
-            device=device,
-            dropout=cfg["dropout"],
-            in_dim=in_features,  
-            conv_channels = cfg["hidden"],
-            residual_channels = cfg["hidden"],
-            skip_channels = 2* cfg["hidden"],
-            end_channels = 4 * cfg["hidden"],      
-            out_dim= cfg["output_dim"],    
-            seq_length = cfg["history"],  
-            layers = cfg["num_layers"],
-            predefined_A=A_norm.to(device),
-            add_storage=cfg['add_storage']
-            ).to(device)       
+    model = gtnet(
+        gcn_true=True,             
+        buildA_true=False,           
+        gcn_depth=cfg["num_layers"],                 
+        num_nodes=num_stations,
+        horizon=cfg['horizon'],
+        device=device,
+        dropout=cfg["dropout"],
+        in_dim=in_features,  
+        conv_channels = cfg["hidden"],
+        residual_channels = cfg["hidden"],
+        skip_channels = 2* cfg["hidden"],
+        end_channels = 4 * cfg["hidden"],      
+        out_dim= cfg["output_dim"],    
+        seq_length = cfg["history"],  
+        layers = cfg["num_layers"],
+        predefined_A=A_norm.to(device),
+        add_storage=cfg['add_storage']
+        ).to(device)
     
     # Count parameters
     num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -171,7 +145,7 @@ def run_single_experiment(cfg, run_id, train_loader, val_loader, std_per_station
     trues = trues.squeeze(-1)
     metrics = compute_avg_metrics(trues, preds)
    
-    # Collect run stats
+   # Collect run stats
     run_stats = {
         "num_params": num_params,
         "macs": macs,
@@ -308,6 +282,9 @@ def main(cfg: DictConfig):
     y_scaler     = prepared["y_scaler"]
     seq_lengths  = prepared["seq_lengths"]
     std_per_station = prepared["std_per_station"]
+    A_np = cfg['adj_np'] 
+    # load adjacency matrix 
+    A_norm, _, _ = load_adjacency_matrix(A_np, specific_order=clim_station_order)
 
     train_loader = DataLoader(train_dataset, batch_size=cfg['batch_size'], shuffle=False, num_workers=2, pin_memory=True, persistent_workers=True, prefetch_factor=2, worker_init_fn=seed_worker)
     val_loader = DataLoader(val_dataset, batch_size=cfg['batch_size'], shuffle=False, num_workers=2, pin_memory=True, worker_init_fn=seed_worker, persistent_workers=True, prefetch_factor=2)
@@ -339,6 +316,7 @@ def main(cfg: DictConfig):
             train_loader=train_loader, 
             val_loader=val_loader, 
             test_loader=test_loader,
+            A_norm=A_norm,
             clim_station_order=clim_station_order,
             num_stations=num_stations,
             in_features=in_features,
