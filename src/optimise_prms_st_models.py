@@ -50,9 +50,9 @@ def run_single_experiment(cfg, run_id, train_loader, val_loader, std_per_station
 
     # Create checkpoint path
     ckpt_path = os.path.join(run_dir, 'best_model.pt')
+    A = torch.from_numpy(A_norm).float().to(device) if not isinstance(A_norm, torch.Tensor) else A_norm.to(device)
 
     if cfg["reg_4_loss"] == "L_dir":
-        A = A_norm.to(device) if not isinstance(A_norm, torch.Tensor) else A_norm
         if cfg['add_storage']==False:
             L_dir = build_advection_operator(A)
         elif cfg['add_storage']:
@@ -61,14 +61,11 @@ def run_single_experiment(cfg, run_id, train_loader, val_loader, std_per_station
         L_dir = None
 
     if 'MPNN-LSTM' in cfg['model_name']:
-        indices = A_norm.nonzero().t()
-        values = A_norm[A_norm > 0]
-        A_sparse = torch.sparse_coo_tensor(indices, values, A_norm.shape, device=device).coalesce()
-    elif 'MTGNN' in cfg['model_name']:
-        A_norm = A_norm.to(device)
+        indices = A.nonzero().t()
+        values = A[A > 0]
+        A_final = torch.sparse_coo_tensor(indices, values, A.shape, device=device).coalesce()
     elif 'STGNN' in cfg['model_name']:
-        A_norm = A_norm.to(device)
-        L = build_advection_operator(A_norm)
+        L = build_advection_operator(A)
         L = L.to_dense() if L.is_sparse else L
         L = L.to(device)
         blocks = [[in_features], [64, 16, 64], [128, 64], [cfg["horizon"]]]
@@ -85,12 +82,12 @@ def run_single_experiment(cfg, run_id, train_loader, val_loader, std_per_station
             dropout=cfg["dropout"],
             seq_len=seq_lengths,
             use_packing=cfg['use_packing'],
-            adj=A_sparse,
+            adj=A_final,
             add_storage=cfg['add_storage']).to(device)
     elif 'STGNN' in cfg['model_name']:
         model = STGCNGraphConv(
             config=cfg,
-            A=A_norm,
+            A=A,
             gso=L,
             blocks=blocks,
             n_vertex = num_stations,
@@ -98,7 +95,7 @@ def run_single_experiment(cfg, run_id, train_loader, val_loader, std_per_station
         ).to(device)
     elif 'DCRNN' in cfg['model_name']:
         model = DCRNNModel(
-            adj_mx=A_norm,
+            adj_mx=A.cpu().numpy(),
             num_nodes=num_stations,
             input_dim=in_features,            
             output_dim=cfg["output_dim"],            
@@ -128,7 +125,7 @@ def run_single_experiment(cfg, run_id, train_loader, val_loader, std_per_station
             out_dim= cfg["output_dim"],    
             seq_length = cfg["history"],  
             layers = cfg["num_layers"],
-            predefined_A=A_norm.to(device),
+            predefined_A=A,
             add_storage=cfg['add_storage']
             ).to(device)
             
@@ -206,7 +203,12 @@ def objective(trial, base_cfg, train_dataset, val_dataset, A_norm, prepared, dev
             cfg["weight_decay"] = 0.0 
  
         cfg["batch_size"] = trial.suggest_categorical("batch_size", [8, 16, 32])
-        
+        if "MTGNN" in cfg["model_name"] or "DCRNN" in cfg["model_name"]:
+            cfg["hidden"] = trial.suggest_categorical("hidden", [32, 64])
+            cfg["num_layers"] = trial.suggest_int("num_layers", 1, 2)
+        elif "MPNN_LSTM" in cfg["model_name"]:
+            cfg["hidden"] = trial.suggest_categorical("hidden", [32, 64])
+
     if cfg["opt_only_lambda_dir"]:
         if cfg["reg_4_loss"]=="L_dir":
             cfg["lambda_L_dir"] = trial.suggest_float("lambda_L_dir", 0.1, 1.0)
