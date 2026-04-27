@@ -1,7 +1,7 @@
 import torch
 import optuna
 from utils.logger import get_logger
-from .utils import dir_laplacian_regularizer
+from .utils import dir_laplacian_regularizer, nl_physics_regularizer
 
 
 class Trainer:
@@ -32,6 +32,11 @@ class Trainer:
                     pred, L_dir = self.model(X)
                     pred = pred.to(self.device)
                     L_dir = L_dir.to(self.device)
+                elif lambda_nl_reg is not None:
+                        pred, a, b = self.model(X)
+                        pred = pred.to(self.device)
+                        a = a.to(self.device)
+                        b = b.to(self.device)
                 else:
                     pred = self.model(X).to(self.device)
                 # loss_mse = self.criterion(pred, y, std_per_station)
@@ -39,8 +44,12 @@ class Trainer:
                 if L_dir is None:
                     loss = loss_mse
                 elif L_dir is not None:
-                    loss = loss_mse + lambda_L_dir * dir_laplacian_regularizer(pred, L_dir)
-                    reg = lambda_L_dir * dir_laplacian_regularizer(pred, L_dir)
+                    if lambda_nl_reg is None and lambda_L_dir is not None:
+                        loss = loss_mse + lambda_L_dir * dir_laplacian_regularizer(pred, L_dir)
+                        reg = lambda_L_dir * dir_laplacian_regularizer(pred, L_dir)
+                    elif lambda_nl_reg is not None and lambda_L_dir is None:
+                        loss = loss_mse + lambda_nl_reg * nl_phys_regularizer(pred, L_dir, a, b)
+                        reg = lambda_nl_reg * nl_phys_regularizer(pred, L_dir, a, b)
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
                 self.optimizer.step()
@@ -64,6 +73,11 @@ class Trainer:
                             pred, L_dir = self.model(X)
                             pred = pred.to(self.device)
                             L_dir = L_dir.to(self.device)
+                    elif lambda_nl_reg is not None:
+                        pred, a, b = self.model(X)
+                        pred = pred.to(self.device)
+                        a = a.to(self.device)
+                        b = b.to(self.device)
                     else:
                         pred = self.model(X).to(self.device)
                     # loss_mse = self.criterion(pred, y, std_per_station)
@@ -71,8 +85,12 @@ class Trainer:
                     if L_dir is None:
                         loss = loss_mse
                     elif L_dir is not None:
-                        loss = loss_mse + lambda_L_dir * dir_laplacian_regularizer(pred, L_dir)
-                        reg = lambda_L_dir * dir_laplacian_regularizer(pred, L_dir)
+                        if lambda_nl_reg is None and lambda_L_dir is not None:
+                            loss = loss_mse + lambda_L_dir * dir_laplacian_regularizer(pred, L_dir)
+                            reg = lambda_L_dir * dir_laplacian_regularizer(pred, L_dir)
+                        elif lambda_nl_reg is not None and lambda_L_dir is None:
+                            loss = loss_mse + lambda_nl_reg * nl_phys_regularizer(pred, L_dir, a, b)
+                            reg = lambda_nl_reg * nl_phys_regularizer(pred, L_dir, a, b)
                     val_loss += loss.item() * X.size(0)
                     if L_dir is not None:
                         val_reg += reg.item()  * X.size(0)

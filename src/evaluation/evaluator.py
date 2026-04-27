@@ -7,7 +7,7 @@ class Evaluator:
         self.model = model
         self.device = device
 
-    def evaluate(self, dataloader, add_storage=False):
+    def evaluate(self, dataloader, add_storage=False, lambda_nl_reg=None):
         self.model.eval()
         all_preds = []
         all_trues = []
@@ -17,6 +17,9 @@ class Evaluator:
                 y_true = y.numpy()
                 if add_storage:
                     pred, _ = self.model(X)
+                    pred = pred.cpu().numpy()
+                elif lambda_nl_reg is not None:
+                    pred, _, _ = self.model(X)
                     pred = pred.cpu().numpy()
                 else:
                     pred = self.model(X).cpu().numpy()

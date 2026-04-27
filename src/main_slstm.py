@@ -50,11 +50,16 @@ def run_single_experiment(cfg, run_id, train_loader, val_loader, std_per_station
         A = torch.tensor(A_np, dtype=torch.float32, device=device)
         if cfg['add_storage']==False:
             L_dir = build_advection_operator(A)
-        elif cfg['add_storage']:
-            L_dir = None   
+        elif cfg["add_storage"]:
+            L_dir = None
+    elif cfg["reg_4_loss"] == "Nl_phys_term":
+        A_np = cfg['adj_np']    
+        A_np, _, _ = load_adjacency_matrix(A_np, specific_order=clim_station_order)
+        A = torch.tensor(A_np, dtype=torch.float32, device=device)
+        L_dir = build_advection_operator(A)
     else:
         L_dir = None
-
+            
     # Initialize model
     if cfg['reg_4_loss'] == "L_dir" and cfg['add_storage']:
         model = sLSTM(
@@ -101,7 +106,8 @@ def run_single_experiment(cfg, run_id, train_loader, val_loader, std_per_station
     
     # Create optimizer
     optimizer = create_optimizer(model, optimizer_cfg)
-
+    
+    # Create criterion
     criterion = MSELoss()
     
     # Initialize trainer
@@ -128,6 +134,7 @@ def run_single_experiment(cfg, run_id, train_loader, val_loader, std_per_station
         add_storage=cfg['add_storage'],
         L_dir=L_dir if cfg['reg_4_loss'] == "L_dir" and cfg['add_storage'] else None,
         lambda_L_dir=cfg["lambda_L_dir"] if cfg['reg_4_loss'] == "L_dir" else None,
+        lambda_nl_reg = cfg["lambda_nl_reg"] if cfg['reg_4_loss'] == "Nl_phys_term" else None,
         epochs=cfg['epochs']
     )
     end_train = time.time()
@@ -139,7 +146,7 @@ def run_single_experiment(cfg, run_id, train_loader, val_loader, std_per_station
 
     # Evaluate model
     start_inf = time.time()
-    preds_scaled, trues_scaled = evaluator.evaluate(test_loader, add_storage=cfg['add_storage'])
+    preds_scaled, trues_scaled = evaluator.evaluate(test_loader, add_storage=cfg['add_storage'], lambda_nl_reg=cfg["lambda_nl_reg"])
     end_inf = time.time()
     inf_total = end_inf - start_inf
     logger.info(f"Inference time total: {inf_total:.4f} sec")
@@ -182,6 +189,14 @@ def run_single_experiment(cfg, run_id, train_loader, val_loader, std_per_station
 
     if cfg.get('add_storage', False) and hasattr(model, 'learn_stor'):
         storage_values = model.learn_stor.detach().cpu().numpy()
+        storage_path = os.path.join(run_dir, 'learned_storage.npy')
+        np.save(storage_path, storage_values)
+        logger.info(f"Saved learned storage to {storage_path}")
+    
+    if cfg['lambda_nl_reg'] is not None and hasattr(model, 'a') and hasattr(model, 'b'):
+        a_values = model.a.detach().cpu().numpy()
+        b_values = model.b.detach().cpu().numpy()
+        storage_values = np.concatenate((a_values, b_values), axis=1)
         storage_path = os.path.join(run_dir, 'learned_storage.npy')
         np.save(storage_path, storage_values)
         logger.info(f"Saved learned storage to {storage_path}")
@@ -262,8 +277,6 @@ def aggregate_stats(cfg, all_stats, logger):
 
 @hydra.main(version_base=None, config_path="../config", config_name="xlstm")
 def main(cfg: DictConfig):
-
-    print(cfg['num_runs'])
     
     # Create directories
     os.makedirs(cfg['results_dir'], exist_ok=True)

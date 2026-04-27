@@ -48,8 +48,11 @@ def run_single_experiment(cfg, run_id, train_loader, val_loader, std_per_station
         A = A_norm.to(device) if not isinstance(A_norm, torch.Tensor) else A_norm
         if cfg['add_storage']==False:
             L_dir = build_advection_operator(A)
-        elif cfg['add_storage']:
-            L_dir = None   
+        elif cfg["add_storage"]:
+            L_dir = None
+    elif cfg["reg_4_loss"] == "Nl_phys_term":
+        A = A_norm.to(device) if not isinstance(A_norm, torch.Tensor) else A_norm
+        L_dir = build_advection_operator(A)
     else:
         L_dir = None
 
@@ -64,7 +67,8 @@ def run_single_experiment(cfg, run_id, train_loader, val_loader, std_per_station
             gso=L,
             blocks=blocks,
             n_vertex = num_stations,
-            add_storage=cfg['add_storage']
+            add_storage=cfg['add_storage'],
+            lambda_nl_reg=cfg["lambda_nl_reg"]
         ).to(device)
     
     # Count parameters
@@ -111,6 +115,7 @@ def run_single_experiment(cfg, run_id, train_loader, val_loader, std_per_station
         add_storage=cfg['add_storage'],
         L_dir=L_dir if cfg['reg_4_loss'] == "L_dir" and cfg['add_storage'] else None,
         lambda_L_dir=cfg["lambda_L_dir"] if cfg['reg_4_loss'] == "L_dir" else None,
+        lambda_nl_reg = cfg["lambda_nl_reg"] if cfg['reg_4_loss'] == "Nl_phys_term" else None,
         epochs=cfg['epochs']
     )
     end_train = time.time()
@@ -122,7 +127,7 @@ def run_single_experiment(cfg, run_id, train_loader, val_loader, std_per_station
 
     # Evaluate model
     start_inf = time.time()
-    preds_scaled, trues_scaled = evaluator.evaluate(test_loader, add_storage=cfg['add_storage'])
+    preds_scaled, trues_scaled = evaluator.evaluate(test_loader, add_storage=cfg['add_storage'], lambda_nl_reg=cfg["lambda_nl_reg"])
     end_inf = time.time()
     inf_total = end_inf - start_inf
     logger.info(f"Inference time total: {inf_total:.4f} sec")
@@ -167,6 +172,14 @@ def run_single_experiment(cfg, run_id, train_loader, val_loader, std_per_station
         storage_path = os.path.join(run_dir, 'learned_storage.npy')
         np.save(storage_path, storage_values)
         logger.info(f"Saved learned storage to {storage_path}")
+
+    if cfg['lambda_nl_reg'] is not None and hasattr(model, 'a') and hasattr(model, 'b'):
+        a_values = model.a.detach().cpu().numpy()
+        b_values = model.b.detach().cpu().numpy()
+        storage_values = np.concatenate((a_values, b_values), axis=1)
+        storage_path = os.path.join(run_dir, 'learned_storage.npy')
+        np.save(storage_path, storage_values)
+        logger.info(f"Saved learned storage to {storage_path}")    
     
     logger.info(f"\nRun {run_id+1} Results:")
     for metric, value in metrics.items():

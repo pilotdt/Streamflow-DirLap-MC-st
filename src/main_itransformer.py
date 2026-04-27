@@ -177,6 +177,14 @@ def run_single_experiment(cfg, run_id, train_loader, val_loader, std_per_station
         np.save(storage_path, storage_values)
         logger.info(f"Saved learned storage to {storage_path}")
     
+    if cfg['lambda_nl_reg'] is not None and hasattr(model, 'a') and hasattr(model, 'b'):
+        a_values = model.a.detach().cpu().numpy()
+        b_values = model.b.detach().cpu().numpy()
+        storage_values = np.concatenate((a_values, b_values), axis=1)
+        storage_path = os.path.join(run_dir, 'learned_storage.npy')
+        np.save(storage_path, storage_values)
+        logger.info(f"Saved learned storage to {storage_path}")
+    
     logger.info(f"\nRun {run_id+1} Results:")
     for metric, value in metrics.items():
         logger.info(f"  {metric}: {value:.4f}")

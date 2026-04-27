@@ -28,6 +28,7 @@ class sLSTM(BaseModel):
         xlstm_proj_factor=1.0,
         dropout=0.0,
         add_storage=False,
+        lamda_nl_reg=None,
         A=None
     ):
         super().__init__()
@@ -38,11 +39,16 @@ class sLSTM(BaseModel):
 
         self.input_dim = num_stations * in_features
         self.add_storage = add_storage
+        self.lambda_nl_reg = lamda_nl_reg
         self.A = A
         if  self.add_storage:
             self.learn_stor = nn.Parameter(torch.ones(num_stations) * 0.0001)
         if self.add_storage==False:
             self.learn_stor = None
+        if self.lambda_nl_reg is not None:
+            self.a = nn.Parameter(torch.ones(num_stations) * 0.0001)
+            self.b = nn.Parameter(torch.ones(num_stations) * 0.0001)
+        
         self.embed = nn.Linear(self.input_dim, hidden)
 
         cfg = xLSTMBlockStackConfig(
@@ -92,6 +98,8 @@ class sLSTM(BaseModel):
         
         if self.add_storage:
             return pred, L_dir
+        elif self.lambda_nl_reg is not None:
+            return pred, a, b
         else:
             return pred
 

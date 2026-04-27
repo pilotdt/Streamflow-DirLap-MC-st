@@ -85,14 +85,45 @@ class DataPreparer:
         y_test_raw  = y_full[val_end:]
 
 
-        # X_test_4_wbe = create_windows_4_wbe(
-        #     X_full=X_test_raw,
+        ## X_test_4_wbe = create_windows_4_wbe(
+        ##     X_full=X_test_raw,
+        ##     history=max_lookb if self.cfg['use_packing'] else self.cfg['history'],
+        ##     horizon=self.cfg['horizon']
+        ## )
+        
+        # X_train_4_wbe = create_windows_4_wbe(
+        #     X_full=X_train_raw,
         #     history=max_lookb if self.cfg['use_packing'] else self.cfg['history'],
         #     horizon=self.cfg['horizon']
         # )
-        # print(X_test_4_wbe.shape)
-        # np.save(f"data/X_test_4_wbe_10.npy", X_test_4_wbe)
+
+        # X_val_4_wbe = create_windows_4_wbe(
+        #     X_full=X_val_raw,
+        #     history=max_lookb if self.cfg['use_packing'] else self.cfg['history'],
+        #     horizon=self.cfg['horizon']
+        # )
+        
+        # if self.cfg['scaler'] is not None: 
+        #     if self.cfg['scaler']=="StandardScaler":
+        #         x_scaler = StandardScaler()
+        #     elif self.cfg['scaler']=="MinMaxScaler":
+        #         x_scaler = MinMaxScaler()
+            
+        #     x_scaler.fit(X_train_raw)
+            
+        #     X_train_4_wbe_scaled = x_scaler.transform(X_train_4_wbe)
+        #     X_val_4_wbe_scaled   = x_scaler.transform(X_val_4_wbe)
+        
+        # print(X_train_4_wbe_scaled.shape)
+        # np.save(f"data/X_train_4_wbe_scaled_10.npy", X_train_4_wbe_scaled)
+
+        # print(X_val_4_wbe_scaled.shape)
+        # np.save(f"data/X_val_4_wbe_scaled_10.npy", X_val_4_wbe_scaled)
         # print(a)
+
+        ## print(X_test_4_wbe.shape)
+        ## np.save(f"data/X_test_4_wbe_10.npy", X_test_4_wbe)
+        ## print(a)
         
         if self.cfg['scaler'] is not None: 
             if self.cfg['scaler']=="StandardScaler":

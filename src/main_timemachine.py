@@ -144,12 +144,6 @@ def run_single_experiment(cfg, run_id, train_loader, val_loader, std_per_station
     # Save predictions
     preds_path = os.path.join(run_dir, 'predictions.npz')
     np.savez(preds_path, predictions=preds, targets=trues)
-
-    if cfg.get('add_storage', False) and hasattr(model, 'learn_stor'):
-        storage_values = model.learn_stor.detach().cpu().numpy()
-        storage_path = os.path.join(run_dir, 'learned_storage.npy')
-        np.save(storage_path, storage_values)
-        logger.info(f"Saved learned storage to {storage_path}")
     
     logger.info(f"\nRun {run_id+1} Results:")
     for metric, value in metrics.items():

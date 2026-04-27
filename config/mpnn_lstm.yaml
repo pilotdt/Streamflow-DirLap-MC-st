@@ -36,6 +36,7 @@ reg_4_loss: ''
 
 model_name: 'MPNN-LSTM${reg_4_loss}'
 lambda_L_dir: 0.45
+lambda_nl_reg:
 weight_decay: 0.00001  
 optimizer: 'adam'  
 patience: 10  

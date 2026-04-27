@@ -83,7 +83,7 @@ def build_advection_operator(A, add_storage=False, learn_stor=None):
 def dir_laplacian_regularizer(preds, L_sparse):
 
     """
-    preds: (B, H, N)
+    preds: (B, H, N) - Predictions over time horizon H
     L_sparse: (N, N) sparse Laplacian
     """
     preds = preds.squeeze(-1)
@@ -99,3 +99,30 @@ def dir_laplacian_regularizer(preds, L_sparse):
     reg = Ly
     reg = torch.pow(Ly, 2).mean()
     return reg
+
+def nl_phys_regularizer(preds, L_sparse, a, b, P, ET, dt=1):
+    """
+    preds: (B, H, N) - Predictions over time horizon H
+    L_sparse: (N, N) - sparse Laplacian (D-A)
+    a, b: Parameters for S = a*y^b (tensors of shape N)
+    dt: Time step size (=1)
+    """
+    B, H, N = preds.shape
+    y_flat = preds.reshape(B * H, N) 
+    y = y_flat
+    yT = y_flat.transpose(0, 1)
+
+    Ly = torch.sparse.mm(L_sparse, yT)
+    Ly = Ly.t().reshape(B, H, N)
+
+    dy_dt = (preds[:, 1:, :] - preds[:, :-1, :]) / dt
+
+    y_term = preds[:, :-1, :]
+    
+    safe_y = torch.clamp(y_term, min=1e-6)
+    storage_term = a * b * torch.pow(safe_y, b - 1) * dy_dt
+    routing_term = Ly[:, :-1, :]
+    
+    loss_phys = storage_term + routing_term - P[:, :-1, :] + ET[:, :-1, :]
+
+    return torch.pow(loss_phys, 2).mean()

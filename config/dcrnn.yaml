@@ -33,6 +33,7 @@ reg_4_loss: ''
 
 model_name: 'DCRNN${reg_4_loss}'
 lambda_L_dir: 0.45
+lambda_nl_reg:
 # lambda_L_dir: 0.38991829857186855
 weight_decay: 0.00001  
 optimizer: 'adam'  

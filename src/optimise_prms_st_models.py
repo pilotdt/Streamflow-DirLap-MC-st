@@ -175,7 +175,7 @@ def run_single_experiment(cfg, run_id, train_loader, val_loader, std_per_station
 
     # Evaluate model 
     start_inf = time.time()
-    preds_scaled, trues_scaled = evaluator.evaluate(val_loader, add_storage=cfg["add_storage"])
+    preds_scaled, trues_scaled = evaluator.evaluate(val_loader, add_storage=cfg["add_storage"],lambda_nl_reg=cfg["lambda_nl_reg"])
     end_inf = time.time()
     inf_total = end_inf - start_inf
     logger.info(f"Inference time total: {inf_total:.4f} sec")

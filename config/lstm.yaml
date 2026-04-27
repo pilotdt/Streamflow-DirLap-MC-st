@@ -16,6 +16,7 @@ log_dir: 'data/logs/${model_name}-${other_csv}-binary=${binary_adj}-un=${un_adj}
 loss_function: mse
 lr: 0.0006853644584430316
 lambda_L_dir: 0.45
+lambda_nl_reg:
 num_layers: 2
 
 num_runs: 10

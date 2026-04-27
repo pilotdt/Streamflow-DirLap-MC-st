@@ -48,6 +48,12 @@ def run_single_experiment(cfg, run_id, train_loader, val_loader, std_per_station
             L_dir = build_advection_operator(A)
         elif cfg["add_storage"]:
             L_dir = None
+    elif cfg["reg_4_loss"] == "Nl_phys_term":
+        A_np = cfg['adj_np']    
+        A_np, _, _ = load_adjacency_matrix(A_np, specific_order=clim_station_order)
+        A = torch.tensor(A_np, dtype=torch.float32, device=device)
+        L_dir = build_advection_operator(A)
+
 
     # Initialize model
     if cfg["reg_4_loss"] == "L_dir" and cfg["add_storage"]:
@@ -62,6 +68,17 @@ def run_single_experiment(cfg, run_id, train_loader, val_loader, std_per_station
             add_storage=cfg["add_storage"],
             A=A
             ).to(device)
+    elif cfg["reg_4_loss"] == "Nl_phys_term":
+        model = GRU(
+            input_dim=in_features*num_stations,
+            output_dim=num_stations,
+            seq_len=seq_lengths,
+            use_packing=cfg["use_packing"],
+            horizon=cfg['horizon'],
+            hidden=cfg['hidden'],
+            num_layers=cfg['num_layers'],
+            lambda_nl_reg=cfg["lambda_nl_reg"],
+            ).to(device) 
     else:
         model = GRU(
             input_dim=in_features*num_stations,
@@ -108,6 +125,7 @@ def run_single_experiment(cfg, run_id, train_loader, val_loader, std_per_station
         add_storage=cfg["add_storage"],
         L_dir=L_dir if cfg["reg_4_loss"] == "L_dir" and cfg["add_storage"] else None,
         lambda_L_dir=cfg["lambda_L_dir"] if cfg["reg_4_loss"] == "L_dir" else None,
+        lambda_nl_reg = cfg["lambda_nl_reg"] if cfg['reg_4_loss'] == "Nl_phys_term" else None,
         epochs=cfg['epochs']
     )
     end_train = time.time()
@@ -118,7 +136,7 @@ def run_single_experiment(cfg, run_id, train_loader, val_loader, std_per_station
 
     # Evaluate model 
     start_inf = time.time()
-    preds_scaled, trues_scaled = evaluator.evaluate(val_loader, add_storage=cfg["add_storage"])
+    preds_scaled, trues_scaled = evaluator.evaluate(val_loader, add_storage=cfg["add_storage"], lambda_nl_reg=cfg["lambda_nl_reg"])
     end_inf = time.time()
     inf_total = end_inf - start_inf
     logger.info(f"Inference time total: {inf_total:.4f} sec")

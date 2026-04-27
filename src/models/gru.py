@@ -7,8 +7,8 @@ from .base_model import BaseModel
 
 class GRU(BaseModel):
     def __init__(self, input_dim, output_dim, hidden, num_layers,
-                 horizon, seq_len=None, use_packing=False,
-                 add_storage=False, A=None):
+                 horizon, seq_len=None, use_packing=False, 
+                 add_storage=False, lambda_nl_reg=None, A=None):
         super().__init__()
 
         self.hidden = hidden
@@ -17,13 +17,18 @@ class GRU(BaseModel):
         self.horizon = horizon
         self.use_packing = use_packing
         self.add_storage = add_storage
+        self.lambda_nl_reg = lamda_nl_reg
         self.A = A
 
         if  self.add_storage:
             self.learn_stor = nn.Parameter(torch.ones(output_dim) * 0.0001) 
         if self.add_storage==False:
             self.learn_stor = None
-        self.encoder = nn.GRU(
+        if self.lambda_nl_reg is not None:
+            self.a = nn.Parameter(torch.ones(num_stations) * 0.0001)
+            self.b = nn.Parameter(torch.ones(num_stations) * 0.0001)
+        
+        self.encoder = nn.LSTM(
             input_size=input_dim,
             hidden_size=hidden,
             num_layers=num_layers,
@@ -84,5 +89,7 @@ class GRU(BaseModel):
         preds = self.decode(x_joint, h, B, N, output_dim=self.fc.out_features)
         if self.add_storage:
             return preds, L_dir
+        elif self.lambda_nl_reg is not None:
+            return preds, a, b
         else:
-            return preds  
+            return preds
